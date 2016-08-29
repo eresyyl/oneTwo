@@ -13,14 +13,14 @@ var Worker = function () {
 
     this.mode = 'emitter' || 'listener';
     this.redis = redis;
-    this.emit_interval = 1;
+    this.emit_interval = 500;
     this.check_interval = 1000;
   }
 
   _createClass(Worker, [{
     key: 'start',
     value: function start(mode) {
-      var _this2 = this;
+      var _this = this;
 
       if (mode == 'getErrors') {
         this.showErrors();
@@ -29,8 +29,8 @@ var Worker = function () {
 
       this.redis.get('last_message:time', function (err, time) {
         var now = Date.now();
-        if (now - time > _this2.emit_interval * 200) mode = 'emitter';
-        _this2.switchMode(mode || 'listener');
+        if (now - time > _this.emit_interval * 2) mode = 'emitter';
+        _this.switchMode(mode || 'listener');
       });
     }
   }, {
@@ -43,14 +43,15 @@ var Worker = function () {
   }, {
     key: 'readOldMessages',
     value: function readOldMessages(eventHandler, callback) {
-      var _this = this;
+      var _this2 = this;
+
       var run = true;
       async.whilst(function () {
         return run;
       }, function (cb) {
-        _this.redis.lpop('messages', function (err, messages) {
+        _this2.redis.lpop('messages', function (err, messages) {
           if (messages) {
-            eventHandler(messages, _this.handleError.bind(_this));
+            eventHandler(messages, _this2.handleError.bind(_this2));
           } else {
             run = false;
           }
@@ -126,6 +127,8 @@ var Worker = function () {
   }, {
     key: 'listen',
     value: function listen(start) {
+      var _this5 = this;
+
       if (!start) {
         this.checker_id && clearInterval(this.checker_id);
         this.redis.unsubscribe('notice');
@@ -134,14 +137,13 @@ var Worker = function () {
       }
 
       var read = this.readOldMessages.bind(this, this.eventHandler.bind(this));
-      var _this = this;
 
       async.waterfall([function (cb) {
         read(cb);
       }, function (cb) {
-        _this.redis.subscribe('notice', function (message) {
-          _this.redis.lpop('messages', function (err, message) {
-            if (message) _this.eventHandler(message, _this.handleError.bind(_this));
+        _this5.redis.subscribe('notice', function (message) {
+          _this5.redis.lpop('messages', function (err, message) {
+            if (message) _this5.eventHandler(message, _this5.handleError.bind(_this5));
           });
         });
       }], function () {
@@ -153,23 +155,24 @@ var Worker = function () {
   }, {
     key: 'checkEmitter',
     value: function checkEmitter() {
-      var _this5 = this;
+      var _this6 = this;
 
       this.redis.get('last_message:time', function (err, time) {
         var now = Date.now();
         console.log(now - time);
-        if (now - time > _this5.emit_interval * 200) _this5.selfElect();
+        if (now - time > _this6.emit_interval * 2) _this6.selfElect();
       });
     }
   }, {
     key: 'selfElect',
     value: function selfElect() {
+      var _this7 = this;
+
       console.log('time is out');
-      var _this = this;
       async.waterfall([function (cb) {
-        _this.canElect(cb);
+        _this7.canElect(cb);
       }, function (canElect, cb) {
-        canElect && _this.switchMode('emitter');cb(canElect);
+        canElect && _this7.switchMode('emitter');cb(canElect);
       }], function (err, result) {
         console.log('Election', result ? 'ok' : 'failed');
       });
@@ -192,12 +195,13 @@ var Worker = function () {
   }, {
     key: 'showErrors',
     value: function showErrors() {
-      var _this = this;
+      var _this8 = this;
+
       var run = true;
       async.whilst(function () {
         return run;
       }, function (callback) {
-        _this.redis.lpop('errors', function (err, messages) {
+        _this8.redis.lpop('errors', function (err, messages) {
           if (messages) {
             console.log(messages);
           } else {
